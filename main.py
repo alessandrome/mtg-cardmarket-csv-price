@@ -138,7 +138,6 @@ if __name__ == '__main__':
                 print(card_number_select)
             if search_redirected:
                 print('Redirect')
-            print(soup)
             min_price = soup.select_one('.col-offer > .price-container').get_text()
             print('CardMarket Price:', min_price[-1:] + min_price[:-2])
             row.append(min_price[-1:] + min_price[:-2])
