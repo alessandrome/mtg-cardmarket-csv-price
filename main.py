@@ -78,9 +78,12 @@ if __name__ == '__main__':
             row = next(csv_reader)
             header = row
             header.append('CardMarket Price')
+            row_to_skip -= 1
+        actual_row = 0
         while row_to_skip > 0:
             next(csv_reader)
             row_to_skip -= 1
+            actual_row += 1
         save_file = csv_file
         if not args.overwrite:
             if args.save:
@@ -101,55 +104,60 @@ if __name__ == '__main__':
             csv_writer.writerow(header)
         saved_rows = 0
         for row in csv_reader:
-            print(row)
-            expansion = row[args.expansion_col].translate(str.maketrans('', '', string.punctuation))
-            card_name = row[args.name_col].translate(str.maketrans('', '', string.punctuation))
-            search_params = {
-                'idCategory': '0',
-                'idExpansion': cardmarket_expansions_id[expansion],
-                'searchString': '{}'.format(row[args.name_col]),
-                'sortBy': 'collectorsnumber_desc',
-            }
-            print(search_params['searchString'])
-            search_redirected = False
-            response = requests.get("https://www.cardmarket.com/en/Magic/Products/Search", params=search_params, allow_redirects=False)
-            if response.status_code >= 300 and response.status_code < 400:
-                search_redirected = True
-            if search_redirected:
-                response = requests.get("https://www.cardmarket.com" + response.headers['Location'], params={'isPlayset': 'N'})
-            soup = bs4.BeautifulSoup(response.text, 'lxml')
-            print('Response History:', response.history)
-            if not search_redirected:
-                no_found_el = soup.find('div', string='Sorry, no matches for your query')
-                if no_found_el:
-                    print('NOT FOUND!')
-                search_table = soup.select_one('div.table-body')
-                card_number_cols = search_table.select('div.col-number > span:last-child')
-                print(card_number_cols)
-                card_number_col = None
-                for el in card_number_cols:
-                    if el.get_text() == row[args.num_col] or args.num_col == -1:
-                        card_number_col = el
-                        break
-                response = requests.get("https://www.cardmarket.com" + el.parent.parent.find('a')['href'], params={'isPlayset': 'N'})
+            try:
+                print(row)
+                expansion = row[args.expansion_col].translate(str.maketrans('', '', string.punctuation))
+                card_name = row[args.name_col].translate(str.maketrans('', '', string.punctuation))
+                search_params = {
+                    'idCategory': '0',
+                    'idExpansion': cardmarket_expansions_id[expansion],
+                    'searchString': '{}'.format(row[args.name_col]),
+                    'sortBy': 'collectorsnumber_desc',
+                }
+                print(search_params['searchString'])
+                search_redirected = False
+                response = requests.get("https://www.cardmarket.com/en/Magic/Products/Search", params=search_params, allow_redirects=False)
+                if response.status_code >= 300 and response.status_code < 400:
+                    search_redirected = True
+                if search_redirected:
+                    response = requests.get("https://www.cardmarket.com" + response.headers['Location'], params={'isPlayset': 'N'})
                 soup = bs4.BeautifulSoup(response.text, 'lxml')
-            card_number_select = soup.select_one('dl > .d-none.d-md-block')
-            if card_number_select and not args.num_col != -1 and row[args.num_col]:
-                print(card_number_select)
-            if search_redirected:
-                print('Redirect')
-            min_price = soup.select_one('.col-offer > .price-container').get_text()
-            print('CardMarket Price:', min_price[-1:] + min_price[:-2])
-            row.append(min_price[-1:] + min_price[:-2])
-            if args.overwrite:
-                pass
-            else:
-                csv_writer.writerow(row)
-            saved_rows += 1
-            if saved_rows % 10 == 0:
-                save_file.flush()
-                print("Flushing 10 rows!")
-            print()
+                print('Response History:', response.history)
+                if not search_redirected:
+                    no_found_el = soup.find('div', string='Sorry, no matches for your query')
+                    if no_found_el:
+                        print('NOT FOUND!')
+                    search_table = soup.select_one('div.table-body')
+                    card_number_cols = search_table.select('div.col-number > span:last-child')
+                    print(card_number_cols)
+                    card_number_col = None
+                    for el in card_number_cols:
+                        if el.get_text() == row[args.num_col] or args.num_col == -1:
+                            card_number_col = el
+                            break
+                    response = requests.get("https://www.cardmarket.com" + el.parent.parent.find('a')['href'], params={'isPlayset': 'N'})
+                    soup = bs4.BeautifulSoup(response.text, 'lxml')
+                card_number_select = soup.select_one('dl > .d-none.d-md-block')
+                if card_number_select and not args.num_col != -1 and row[args.num_col]:
+                    print(card_number_select)
+                if search_redirected:
+                    print('Redirect')
+                min_price = soup.select_one('.col-offer > .price-container').get_text()
+                print('CardMarket Price:', min_price[-1:] + min_price[:-2])
+                row.append(min_price[-1:] + min_price[:-2])
+                if args.overwrite:
+                    pass
+                else:
+                    csv_writer.writerow(row)
+                saved_rows += 1
+                actual_row += 1
+                if saved_rows % 10 == 0:
+                    save_file.flush()
+                    print("Flushing 10 rows!")
+                print()
+            except Exception as ex:
+                print(ex)
+                print("Whoops! An error on line {}".format(actual_row))
         if not args.overwrite:
             save_file.close()
 
